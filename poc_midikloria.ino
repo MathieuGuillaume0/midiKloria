@@ -14,7 +14,8 @@
 // project related defines
 #define MAX_ANALOG_VALUE 714.0f  // choosen by experiments with sensors
 #define DEFAULT_CHANNEL 1
-#define AVG_SAMPLES_NUM 3
+#define AVG_SAMPLES_NUM 3  // number of samples used in the moving average
+#define ANALOG_DIFF_THRES 1  // difference threshold between last and current value until a MIDI msg is sent
 
 // project variables
 int potarValue, sliderValue;
@@ -58,8 +59,8 @@ void setup() {
 
 void loop() {
   // get analog values
-  potarValue = analogRead(POTAR_PIN);
-  sliderValue = analogRead(SLIDER_PIN);
+  potarValue = (analogRead(POTAR_PIN) / MAX_ANALOG_VALUE)*127;
+  sliderValue = (analogRead(SLIDER_PIN) / MAX_ANALOG_VALUE)*127;
 
   // moving average off these values
   potarAvg = movingAvg(potarArray, AVG_SAMPLES_NUM, &potarSum, potarValue, avgPos);
@@ -70,17 +71,17 @@ void loop() {
   if (avgPos >= AVG_SAMPLES_NUM) avgPos = 0;
   
   // send midi control change if one of the analog value changed
-  if (potarAvg != lastpotarAvg){
+  if (abs(potarAvg - lastpotarAvg) > ANALOG_DIFF_THRES){
     lastpotarAvg = potarAvg;
-    MIDI.sendControlChange(1, (byte)((potarAvg / MAX_ANALOG_VALUE)*127), DEFAULT_CHANNEL);
+    MIDI.sendControlChange(1, potarAvg, DEFAULT_CHANNEL);
   }
-  if (sliderAvg != lastsliderAvg){
+  if (abs(sliderAvg - lastsliderAvg) > ANALOG_DIFF_THRES){
     lastsliderAvg = sliderAvg;
-    MIDI.sendControlChange(2, (byte)((sliderAvg / MAX_ANALOG_VALUE)*127), DEFAULT_CHANNEL);
+    MIDI.sendControlChange(2, sliderAvg, DEFAULT_CHANNEL);
   }
   
-  // set pwm duty cycle of led 2 according to potar ratio
-  analogWrite(LED2_PIN, (byte) ((potarValue / MAX_ANALOG_VALUE)*255)); 
+  // set pwm duty cycle of led 2 according to potar value
+  analogWrite(LED2_PIN, potarAvg*2); 
   
   // get digital values buttons
   button0Value = digitalRead(BUTTON0_PIN);
