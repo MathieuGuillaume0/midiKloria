@@ -15,7 +15,7 @@ MIDI_CREATE_DEFAULT_INSTANCE();
 #define DEFAULT_VELOCITY 127
 #define BUTTONS_NUM 3
 #define BUTTONS_CC_OFFSET 15  // control change start id for buttons
-#define BUTTONS_NOTE_OFFSET 50  // note start id for buttons
+#define NOTE_OFFSET 50  // note start id for buttons
 
 #define MAX_ANALOG_VALUE 714.0f  // choosen by experiments with sensors
 #define AVG_SAMPLES_NUM 3  // number of samples used in the moving average
@@ -31,10 +31,15 @@ int potarAvg, lastpotarAvg, sliderAvg, lastsliderAvg;
 int avgPos = 0;
 int potarArray[AVG_SAMPLES_NUM] = {0}, sliderArray[AVG_SAMPLES_NUM] = {0};
 
-/** button variables (use a structure !!!!!!!!!) **/
+/** button variables**/
+struct button {
+	byte pinNumber;
+	bool state=1;  // save last button state to detect button push and release
+	bool value=1;  // last value * 127 sent in the MIDI msg when the button is pressed in CC mode
+};
+struct button buttons[BUTTONS_NUM];
 byte buttonsPins[BUTTONS_NUM] = {10, 9, 8};  // buttons pins on the nano board
-bool buttonsStates[BUTTONS_NUM] = {1};  // save last button state to detect button push and release
-bool buttonsValues[BUTTONS_NUM] = {1}; // last value * 127 sent in the MIDI msg when the button is pressed in CC mode
+
 
 /** functions **/ 
 int movingAvg(int *numArray, int arraySize, int *sum, int nextNum, int pos){
@@ -48,21 +53,22 @@ int movingAvg(int *numArray, int arraySize, int *sum, int nextNum, int pos){
 	return *sum / arraySize;
 }
 
-void updateButton(bool *states, bool *values, byte *pins, byte id){
-	bool buttonState = digitalRead(pins[id]);
+void updateButton(struct button *buttonsArray, byte id){
+	struct button *thisButton = buttonsArray + id;
+	bool buttonState = digitalRead(thisButton->pinNumber);
 	
 	#ifdef BUTTON_NOTE_MODE  // send note msg
-	if (buttonState != states[id]){
-		if (!buttonState) MIDI.sendNoteOn(BUTTONS_NOTE_OFFSET + id, DEFAULT_VELOCITY, DEFAULT_CHANNEL);  // note on when button is pressed
-		else MIDI.sendNoteOff(BUTTONS_NOTE_OFFSET + id, DEFAULT_VELOCITY, DEFAULT_CHANNEL);  // note off when button is released
+	if (buttonState != thisButton->state){
+		if (!buttonState) MIDI.sendNoteOn(NOTE_OFFSET + id, DEFAULT_VELOCITY, DEFAULT_CHANNEL);  // note on when button is pressed
+		else MIDI.sendNoteOff(NOTE_OFFSET + id, DEFAULT_VELOCITY, DEFAULT_CHANNEL);  // note off when button is released
 	}
 	#else  // send CC msg 
-	if ((buttonState != states[id]) && !buttonState){  // only when button is pressed
-		values[id] = !values[id];  
-		MIDI.sendControlChange(BUTTONS_CC_OFFSET + id, values[id]*127, DEFAULT_CHANNEL);  // send enable or disable request regarding the previous value 
+	if ((buttonState != thisButton->state) && !buttonState){  // only when button is pressed
+		thisButton->value = !thisButton->value;  
+		MIDI.sendControlChange(BUTTONS_CC_OFFSET + id, thisButton->value*127, DEFAULT_CHANNEL);  // send enable or disable request regarding the previous value 
 	}
 	#endif
-	states[id] =  buttonState;  // save current button state
+	thisButton->state = buttonState;  // save current button state
 }
 
 
@@ -74,6 +80,7 @@ void setup() {
 	// configure button pins as as pull up input
 	for(int i=0; i < BUTTONS_NUM; i++){
 		pinMode(buttonsPins[i], INPUT_PULLUP);
+		buttons[i].pinNumber = buttonsPins[i];
 	}
 	// configure leds pin as output
 	pinMode(LED0_PIN, OUTPUT);
@@ -111,7 +118,7 @@ void loop() {
 	
 	// read button values and send MIDI message if necessary
 	for(int i=0; i < BUTTONS_NUM; i++){
-		updateButton(buttonsStates, buttonsValues, buttonsPins, i);
+		updateButton(buttons, i);
 	}
 
 	// toggle led 0 every loop
