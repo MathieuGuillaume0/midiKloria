@@ -12,10 +12,12 @@
 #define LED2_PIN 11
 
 // project related defines
-#define MAX_ANALOG_VALUE 714.0f  // choosen by experiments with sensors
 #define DEFAULT_CHANNEL 1
+#define DEFAULT_VELOCITY 127
+#define MAX_ANALOG_VALUE 714.0f  // choosen by experiments with sensors
 #define AVG_SAMPLES_NUM 3  // number of samples used in the moving average
 #define ANALOG_DIFF_THRES 1  // difference threshold between last and current value until a MIDI msg is sent
+//#define BUTTON_NOTE_MODE
 
 // project variables
 int potarValue, sliderValue;
@@ -23,7 +25,10 @@ int potarSum = 0, sliderSum = 0;
 int potarAvg, lastpotarAvg, sliderAvg, lastsliderAvg;
 int avgPos = 0;
 int potarArray[AVG_SAMPLES_NUM] = {0}, sliderArray[AVG_SAMPLES_NUM] = {0};
+
 bool button0Value, button1Value, button2Value;
+bool lastbutton0Value = 1, lastbutton1Value = 1, lastbutton2Value = 1;
+byte i;
 
 // functions
 int movingAvg(int *numArray, int arraySize, int *sum, int nextNum, int pos){
@@ -88,11 +93,27 @@ void loop() {
   button1Value = digitalRead(BUTTON1_PIN);
   button2Value = digitalRead(BUTTON2_PIN);
 
+  // 
+  #ifdef BUTTON_NOTE_MODE  // send note msg
+  if (button0Value != lastbutton0Value){
+    if (!button0Value) MIDI.sendNoteOn(50, DEFAULT_VELOCITY, DEFAULT_CHANNEL);
+    else MIDI.sendNoteOff(50, DEFAULT_VELOCITY, DEFAULT_CHANNEL);
+    lastbutton0Value =  button0Value;  
+  }
+  #else  // send CC msg
+  if ((button0Value != lastbutton0Value) && !button0Value){
+    if (i%2) MIDI.sendControlChange(3, 127, DEFAULT_CHANNEL);
+    else MIDI.sendControlChange(3, 0, DEFAULT_CHANNEL);
+    i++; 
+  }
+  lastbutton0Value =  button0Value; 
+  #endif
+  
   // toggle led 0 every loop
   digitalWrite(LED0_PIN, !digitalRead(LED0_PIN));
   
   // print values
-//  Serial.println(potarAvg);
+//  Serial.println(i);
 //  Serial.println(potarRatio*255);
   
   
