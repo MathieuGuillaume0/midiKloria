@@ -3,18 +3,16 @@
 // Create and binds the MIDI interface to the default hardware Serial port
 MIDI_CREATE_DEFAULT_INSTANCE();
 
-/** symbolic pin names **/
-#define POTAR_PIN A0
-#define SLIDER_PIN A1
-#define LED0_PIN 13
-#define LED1_PIN 12
-#define LED2_PIN 11
-
 /** project related defines **/
+#define BUTTONS_NUM 3
+#define POTARS_NUM 2
+#define LEDS_NUM 3
+
 #define DEFAULT_CHANNEL 1
 #define DEFAULT_VELOCITY 127
-#define BUTTONS_NUM 3
-#define BUTTONS_CC_OFFSET 15  // control change start id for buttons
+
+#define POTARS_CC_OFFSET 1  // control change start id for buttons
+#define BUTTONS_CC_OFFSET (POTARS_CC_OFFSET + POTARS_NUM)  // control change start id for buttons
 #define NOTE_OFFSET 50  // note start id for buttons
 
 #define MAX_ANALOG_VALUE 714.0f  // choosen by experiments with sensors
@@ -23,13 +21,20 @@ MIDI_CREATE_DEFAULT_INSTANCE();
 //#define BUTTON_NOTE_MODE  // buttons will send notes msgs. comment this if you want CC msgs. 
 
 
+/** pins **/
+byte potarsPins[POTARS_NUM] = {A0, A1}; 
+byte buttonsPins[BUTTONS_NUM] = {7, 8, 9};  
+byte ledsPins[LEDS_NUM] = {13, 10, 11};  
 
 /** pot variables **/
-int potarValue, sliderValue;
-int potarSum = 0, sliderSum = 0;
-int potarAvg, lastpotarAvg, sliderAvg, lastsliderAvg;
-int avgPos = 0;
-int potarArray[AVG_SAMPLES_NUM] = {0}, sliderArray[AVG_SAMPLES_NUM] = {0};
+byte avgPos = 0;
+struct potar {
+	byte pinNumber;
+	int lastValue, sum = 0;
+	int previousValues[AVG_SAMPLES_NUM] = {0};
+};
+struct potar potars[POTARS_NUM];
+
 
 /** button variables**/
 struct button {
@@ -38,8 +43,6 @@ struct button {
 	bool value=1;  // last value * 127 sent in the MIDI msg when the button is pressed in CC mode
 };
 struct button buttons[BUTTONS_NUM];
-byte buttonsPins[BUTTONS_NUM] = {10, 9, 8};  // buttons pins on the nano board
-
 
 /** functions **/ 
 int movingAvg(int *numArray, int arraySize, int *sum, int nextNum, int pos){
@@ -71,64 +74,72 @@ void updateButton(struct button *buttonsArray, byte id){
 	thisButton->state = buttonState;  // save current button state
 }
 
+void updatePotar(struct potar *potarsArray, byte id, byte pos){ 
+	struct potar *thisPotar = potarsArray + id;
+	
+	// get analog value
+	int potarValue = (analogRead(thisPotar->pinNumber) / MAX_ANALOG_VALUE)*127;
+
+	// moving average 
+	int potarAvg = movingAvg(thisPotar->previousValues, AVG_SAMPLES_NUM, &thisPotar->sum, potarValue, pos);
+
+	// send MIDI control change if one of the analog value changed
+	if (abs(potarAvg - thisPotar->lastValue) > ANALOG_DIFF_THRES){
+		MIDI.sendControlChange(POTARS_CC_OFFSET + id, potarAvg, DEFAULT_CHANNEL);
+	}
+	
+	// save this value for next loop
+	thisPotar->lastValue = potarAvg;
+}
+
 
 void setup() {
 	// initialize serial and MIDI handler
 	MIDI.begin(MIDI_CHANNEL_OMNI);
 	Serial.begin(115200);
-
-	// configure button pins as as pull up input
+	
+	// initialize potars structure
+	for(int i=0; i < POTARS_NUM; i++){
+		potars[i].pinNumber = potarsPins[i];
+	}
+	
+	// configure button pins as pull up input and init structure
 	for(int i=0; i < BUTTONS_NUM; i++){
 		pinMode(buttonsPins[i], INPUT_PULLUP);
 		buttons[i].pinNumber = buttonsPins[i];
 	}
-	// configure leds pin as output
-	pinMode(LED0_PIN, OUTPUT);
-	pinMode(LED1_PIN, OUTPUT);
-	pinMode(LED2_PIN, OUTPUT);
+	
+	// configure leds pins as output
+	for(int i=0; i < LEDS_NUM; i++){
+		pinMode(ledsPins[i], OUTPUT);
+	}
 
 }
 
 /** MAIN LOOP **/
 void loop() {
-	// get analog values
-	potarValue = (analogRead(POTAR_PIN) / MAX_ANALOG_VALUE)*127;
-	sliderValue = (analogRead(SLIDER_PIN) / MAX_ANALOG_VALUE)*127;
-
-	// moving average off these values
-	potarAvg = movingAvg(potarArray, AVG_SAMPLES_NUM, &potarSum, potarValue, avgPos);
-	sliderAvg = movingAvg(sliderArray, AVG_SAMPLES_NUM, &sliderSum, sliderValue, avgPos);
-
+	// read potar values and send MIDI message if any change
+	for(int i=0; i < POTARS_NUM; i++){
+		updatePotar(potars, i, avgPos);
+	}
+	
 	// increase moving average positon for the next loop
 	avgPos++;
 	if (avgPos >= AVG_SAMPLES_NUM) avgPos = 0;
-
-	// send MIDI control change if one of the analog value changed
-	if (abs(potarAvg - lastpotarAvg) > ANALOG_DIFF_THRES){
-		lastpotarAvg = potarAvg;
-		MIDI.sendControlChange(1, potarAvg, DEFAULT_CHANNEL);
-	}
-	if (abs(sliderAvg - lastsliderAvg) > ANALOG_DIFF_THRES){
-		lastsliderAvg = sliderAvg;
-		MIDI.sendControlChange(2, sliderAvg, DEFAULT_CHANNEL);
-	}
-
-	// set pwm duty cycle of led 2 according to potar value
-	analogWrite(LED2_PIN, potarAvg*2); 
 	
-	// read button values and send MIDI message if necessary
+
+	// read button values and send MIDI message (CC or Note) if any change
 	for(int i=0; i < BUTTONS_NUM; i++){
 		updateButton(buttons, i);
 	}
 
 	// toggle led 0 every loop
-	digitalWrite(LED0_PIN, !digitalRead(LED0_PIN));
-
-	// print values
-	//  Serial.println(i);
-	//  Serial.println(potarRatio*255);
-
-
+	digitalWrite(ledsPins[0], !digitalRead(ledsPins[0]));
+	
+	// set pwm duty cycle of led 1 and 2 according to potar values
+	analogWrite(ledsPins[1], potars[0].lastValue*2); 
+	analogWrite(ledsPins[2], potars[1].lastValue*2); 
+	
 	// wait
 	delay(50);  
    
