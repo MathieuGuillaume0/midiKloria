@@ -6,9 +6,7 @@ MIDI_CREATE_DEFAULT_INSTANCE();
 /** project related defines **/
 #define BUTTONS_NUM 3
 #define LEDS_NUM 3
-#define DIRECT_POTARS_NUM 2  // number of potars directly wired to an arduino pin
-#define MUX_POTARS_NUM 2  // number of potars wired to the input multiplexer
-#define POTARS_NUM (DIRECT_POTARS_NUM + MUX_POTARS_NUM) // total number of potars
+#define POTARS_NUM 3
 
 #define DEFAULT_CHANNEL 1
 #define DEFAULT_VELOCITY 127
@@ -17,18 +15,17 @@ MIDI_CREATE_DEFAULT_INSTANCE();
 #define NOTE_OFFSET 50  // note start id for buttons
 #define BUTTON_CC_MODE  // buttons will send CC msgs. comment this if you want note msgs
 
-#define MAX_ANALOG_VALUE 714.0f  // choosen by experiments with sensors
 #define AVG_SAMPLES_NUM 3  // number of samples used in the moving average
 #define ANALOG_DIFF_THRES 1  // difference threshold between last and current value until a MIDI msg is sent
 
 
 
 /** pins **/
-byte potarsPins[POTARS_NUM] = {A1, A2, A0, A0}; 
-int potarsMuxIds[POTARS_NUM] = {-1, -1, 0, 1};  // -1 means theres no multiplexer between the potar and the board pin
+byte potarsPins[POTARS_NUM] = {A0, A0, A1}; 
+int potarsMuxIds[POTARS_NUM] = {0, 1, -1};
 byte buttonsPins[BUTTONS_NUM] = {7, 8, 9};  
 byte ledsPins[LEDS_NUM] = {13, 10, 11}; 
-byte muxPins[] = {0, 1, 2};
+byte muxPins[] = {2, 3, 4};
 
 /** pot variables **/
 byte avgPos = 0;
@@ -80,16 +77,15 @@ void updateButton(struct button *buttonsArray, byte id){
 
 void updatePotar(struct potar *potarsArray, byte id, byte pos){ 
 	struct potar *thisPotar = potarsArray + id;
-	
 	// get analog value
-	if (thisPotar->muxId){  // drive multiplexer pins before read if this a mux input 
+	if (thisPotar->muxId >= 0){  // drive multiplexer pins before read if this a mux input 
 		byte muxId = (byte)thisPotar->muxId;
 		for(int i=0; i < 3; i++){
-			digitalWrite(muxPins, (muxId >> i) & 0x01);
+			digitalWrite(muxPins[i], (muxId >> i) & 0x01);
 		}
-		delay(5);  // wait a bit before reading
+		delay(1);  // wait a bit before reading
 	}
-	int potarValue = (analogRead(thisPotar->pinNumber) / MAX_ANALOG_VALUE)*127;
+	int potarValue = (analogRead(thisPotar->pinNumber) / 1023.0f)*127;
 
 	// moving average 
 	int potarAvg = movingAvg(thisPotar->previousValues, AVG_SAMPLES_NUM, &thisPotar->sum, potarValue, pos);
