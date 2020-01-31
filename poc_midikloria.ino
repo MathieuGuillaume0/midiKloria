@@ -93,10 +93,11 @@ void updatePotar(struct potar *potarsArray, byte id, byte pos){
 	// send MIDI control change if one of the analog value changed
 	if (abs(potarAvg - thisPotar->lastValue) > ANALOG_DIFF_THRES){
 		MIDI.sendControlChange(POTARS_CC_OFFSET + id, potarAvg, DEFAULT_CHANNEL);
+		thisPotar->lastValue = potarAvg;  // save this value for next loop
 	}
 	
-	// save this value for next loop
-	thisPotar->lastValue = potarAvg;
+	
+	
 }
 
 
