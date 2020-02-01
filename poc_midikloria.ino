@@ -4,9 +4,9 @@
 MIDI_CREATE_DEFAULT_INSTANCE();
 
 /** project related defines **/
-#define BUTTONS_NUM 3
+#define BUTTONS_NUM 8
 #define LEDS_NUM 3
-#define POTARS_NUM 3
+#define POTARS_NUM 9
 
 #define DEFAULT_CHANNEL 1
 #define DEFAULT_VELOCITY 127
@@ -21,10 +21,11 @@ MIDI_CREATE_DEFAULT_INSTANCE();
 
 
 /** pins **/
-byte potarsPins[POTARS_NUM] = {A0, A0, A1}; 
-int potarsMuxIds[POTARS_NUM] = {0, 1, -1};
-byte buttonsPins[BUTTONS_NUM] = {7, 8, 9};  
-byte ledsPins[LEDS_NUM] = {13, 10, 11}; 
+byte potarsPins[POTARS_NUM] = {A0, A0, A0, A0, A3, A4, A5, A6, A7}; 
+int potarsMuxIds[POTARS_NUM] = {0, 1, 2, 3, -1, -1, -1, -1, -1};
+
+byte buttonsPins[BUTTONS_NUM] = {5, 6, 7, 8, 9, 10, A1, A2};  
+byte ledsPins[LEDS_NUM] = {10, 11, 13}; 
 byte muxPins[] = {2, 3, 4};
 
 /** pot variables **/
@@ -146,11 +147,11 @@ void loop() {
 	}
 
 	// toggle led 0 every loop
-	digitalWrite(ledsPins[0], !digitalRead(ledsPins[0]));
+	digitalWrite(ledsPins[2], !digitalRead(ledsPins[2]));
 	
 	// set pwm duty cycle of led 1 and 2 according to potar values
-	analogWrite(ledsPins[1], potars[0].lastValue*2); 
-	analogWrite(ledsPins[2], potars[1].lastValue*2); 
+	analogWrite(ledsPins[0], potars[0].lastValue*2); 
+	analogWrite(ledsPins[1], potars[1].lastValue*2); 
 	
 	// wait
 	delay(50);  
