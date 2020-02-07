@@ -24,7 +24,7 @@ MIDI_CREATE_DEFAULT_INSTANCE();
 byte potarsPins[POTARS_NUM] = {A0, A0, A0, A0, A3, A4, A5, A6, A7}; 
 int potarsMuxIds[POTARS_NUM] = {0, 1, 2, 3, -1, -1, -1, -1, -1};
 
-byte buttonsPins[BUTTONS_NUM] = {5, 6, 7, 8, 9, 10, A1, A2};  
+byte buttonsPins[BUTTONS_NUM] = {5, 6, 7, 8, 9, 12, A1, A2};  
 byte ledsPins[LEDS_NUM] = {10, 11, 13}; 
 byte muxPins[] = {2, 3, 4};
 
@@ -96,9 +96,6 @@ void updatePotar(struct potar *potarsArray, byte id, byte pos){
 		MIDI.sendControlChange(POTARS_CC_OFFSET + id, potarAvg, DEFAULT_CHANNEL);
 		thisPotar->lastValue = potarAvg;  // save this value for next loop
 	}
-	
-	
-	
 }
 
 
@@ -126,7 +123,6 @@ void setup() {
 	for(int i=0; i < 3; i++){
 		pinMode(muxPins[i], OUTPUT);
 	}
-
 }
 
 /** MAIN LOOP **/
@@ -154,7 +150,5 @@ void loop() {
 	analogWrite(ledsPins[1], potars[1].lastValue*2); 
 	
 	// wait
-	delay(50);  
-   
-
+	delay(5);    
 }
